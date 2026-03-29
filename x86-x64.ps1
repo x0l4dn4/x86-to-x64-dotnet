@@ -11,8 +11,8 @@ param(
 # Backup folder for modified solution projects
 
 $BackupProjectDirectory = Join-Path $SolutionPath "_backup"
-New-Item -ItemType Directory -Force -Path $BackupProjectDirectory | Out-Null
-
+if (-not (Test-Path -Path $backupDir -PathType Container)) {
+    New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
 
 # First cleanup object and bin directories
 
