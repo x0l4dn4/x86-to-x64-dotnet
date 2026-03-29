@@ -8,20 +8,26 @@ param(
 	[string]$SolutionPath = "."
 )
 
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+
 # Backup folder for modified solution projects
 
-$BackupProjectDirectory = Join-Path $SolutionPath "_backup"
-if (-not (Test-Path -Path $backupDir -PathType Container)) {
+$backupDir = Join-Path $SolutionPath "_backup"
+
+if (-not (Test-Path -Path $backupDir -PathType Container))
     New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+
+# Log directory for any changes in the solutions files
+
+$logDir = Join-Path $SolutionPath "_logs"
+if (-not (Test-Path -Path $logDir -PathType Container))
+	New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 # First cleanup object and bin directories
 
 gci -Path $SolutionPath -Recurse -Directory |
 	Where-Object { $_.Name -in @("bin", "obj") } |
 	ri -Recurse -Force
-
-# Target to x64 in project files, if you got a different file replace it
-# As project files are XML documents instead of deal with them as a raw text you can treat them like a tree of elements
 
 ########################################################################################################################################
 # Watch out! The current implementation overwrites ALL PropertyGroups you may intentionally mix targets such as Debug x86, Release x64 #
@@ -41,17 +47,39 @@ gci -Path $SolutionPath -Recurse -Include *.csproj, *.vbproj | ForEach-Object {
         }
     }
 
-    if ($changed) {
-        $BackupProjectDirectory = "$($_.FullName).bak"
+   if ($changed) {
 
-    if ($changed) {
+        # Relative path
+        $relativePath = $_.FullName.Substring($SolutionPath.Length).TrimStart('\')
+
+        # Backup path
+        $backupPath = Join-Path $backupDir ($relativePath + "." + $timestamp + ".bak")
+
+        # Log path
+        $logPath = Join-Path $logDir ($relativePath + ".log")
+
+        # Ensure directories exist
+        New-Item -ItemType Directory -Force -Path (Split-Path $backupPath) | Out-Null
+        New-Item -ItemType Directory -Force -Path (Split-Path $logPath) | Out-Null
+
+        # Backup
+        Copy-Item $_.FullName $backupPath
+
+        # Save changes
         $xml.Save($_.FullName)
-        Write-Host "Updated: $($_.FullName)"
+
+        # Log entry
+        $logEntry = @"
+			[$(Get-Date)]
+			Updated PlatformTarget x86 -> x64
+			File: $($_.FullName)
+			Backup: $backupPath
+
+		   "@
+
+        Add-Content -Path $logPath -Value $logEntry
     }
 }
 
-# TODO: Add login of the replaced lines
-
-
-# gci -Recurse -Include *.csproj, *.vbproj |  ForEach-Object { (Get-Content $_.FullName) -replace '<PlatformTarget>\s*x86\s*</PlatformTarget>', '<PlatformTarget>x64</PlatformTarget>' | Set-Content $_.FullName }
+# TODO: Add logs of the replaced lines
 
