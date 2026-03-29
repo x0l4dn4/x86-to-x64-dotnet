@@ -8,6 +8,12 @@ param(
 	[string]$SolutionPath = "."
 )
 
+# Backup folder for modified solution projects
+
+$BackupProjectDirectory = Join-Path $SolutionPath "_backup"
+New-Item -ItemType Directory -Force -Path $BackupProjectDirectory | Out-Null
+
+
 # First cleanup object and bin directories
 
 gci -Path $SolutionPath -Recurse -Directory |
@@ -16,9 +22,15 @@ gci -Path $SolutionPath -Recurse -Directory |
 
 # Target to x64 in project files, if you got a different file replace it
 # As project files are XML documents instead of deal with them as a raw text you can treat them like a tree of elements
-# Watch out! you may have profiles such as Debug with PlataformTarget set to x86 you may won't to edit them.
 
-gci -Recurse -Include *.csproj, *.vbproj | ForEach-Object {
+########################################################################################################################################
+# Watch out! The current implementation overwrites ALL PropertyGroups you may intentionally mix targets such as Debug x86, Release x64 #
+########################################################################################################################################
+
+# TODO:  Create a menu giving the choice to overwrite every <PropertyGroup> or choosen ones.
+
+gci -Path $SolutionPath -Recurse -Include *.csproj, *.vbproj | ForEach-Object {
+
     [xml]$xml = Get-Content $_.FullName
     $changed = $false
 
@@ -28,6 +40,9 @@ gci -Recurse -Include *.csproj, *.vbproj | ForEach-Object {
             $changed = $true
         }
     }
+
+    if ($changed) {
+        $BackupProjectDirectory = "$($_.FullName).bak"
 
     if ($changed) {
         $xml.Save($_.FullName)
